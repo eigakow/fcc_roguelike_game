@@ -1,18 +1,19 @@
-#canvasShadow {
+#canvasShadow{
   position: absolute;
   left: 0;
   top: 0;
   z-index: 2;
-  opacity: 1; }
-
-#canvasMap {
+  opacity:1;
+}
+#canvasMap{
   position: absolute;
   left: 0;
   top: 0;
-  z-index: 0; }
-
-#canvasItems {
+  z-index: 0;
+}
+#canvasItems{
   position: absolute;
   left: 0;
   top: 0;
-  z-index: 1; }
+  z-index: 1;
+}
