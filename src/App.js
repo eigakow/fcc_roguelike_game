@@ -1,16 +1,14 @@
-import React, { Component } from 'react';
-import logo from './logo.svg';
-import './App.css';
+import React, { Component } from "react";
+import logo from "./logo.svg";
+import "./App.css";
 
-import * as myMap from './Map.js';
+import * as myMap from "./Map.js";
+import * as myPlayer from "./Player.js";
+//import * as myImage from "./ImageLoader.js";
 
+var mainItems, weaponItems, healthItems, enemyItems;
 
-const imagePerson = require('./img/main_guy.png')
-const imageWall = require('./img/wall.png')
-const imageFloor = require('./img/floor.png')
-const imageEnemy = require('./img/main_enemy.png')
-const imageWeapon = require('./img/sword.png')
-
+// LOADING images
 
 class App extends Component {
   render() {
@@ -23,11 +21,10 @@ class App extends Component {
 }
 
 class Board extends Component {
-  constructor(props){
+  constructor(props) {
     super(props);
   }
   render() {
-    console.log(myMap.doors)
     return (
       <div>
         <CanvasComponent />
@@ -37,163 +34,555 @@ class Board extends Component {
 }
 
 class CanvasComponent extends React.Component {
-    constructor(props){
-      super(props);
-      this.drawMap = this.drawMap.bind(this);
-    }
-    componentDidMount() {
+  constructor(props) {
+    super(props);
+    this.loadImages();
+    this.state = {
+      boardSizeX: myMap.mapArray[0].length,
+      boardSizeY: myMap.mapArray.length,
+      windowSize: 15,
+      board: myMap.mapArray,
+      boardItems: myMap.itemsArray,
+      boardShadow: myMap.shadowArray,
+      position: myMap.initialCo,
+      player: new myPlayer.Player(),
+      enemy: enemyItems,
+      imageLoaded: false,
+      game: {
+        currentLevel: 1,
+        notificationOn: false,
+        notificationText: "Let's try it..."
+      }
+    };
+  }
+  componentDidMount() {
+    this.notifyPlayer("Let's play...", 2500);
+  }
+  notifyPlayer(text, time = 3000) {
+    var gamestate = this.state.game;
+    gamestate.notificationText = text;
+    gamestate.notificationOn = true;
+    this.setState({ game: gamestate }, () => {
+      this.moveNotAllowed();
+      setInterval(() => {
+        var gamestate = this.state.game;
+        gamestate.notificationText = "";
+        gamestate.notificationOn = false;
+        this.setState({ game: gamestate }, () => {
+          this.moveAllowed();
+        });
+      }, time);
+    });
+  }
+
+  loadImages() {
+    var loaded = false;
+    var loadedImagesCount = 0;
+
+    mainItems = [
+      [require("./img/wall.png"), new Image()],
+      [require("./img/floor.png"), new Image()],
+      [require("./img/main_guy.png"), new Image()],
+      [require("./img/boss.png"), new Image(), new myPlayer.Enemy()]
+    ];
+    mainItems.forEach(function(el) {
+      el[1].onload = () => {
+        loadedImagesCount++;
+        if (loadedImagesCount === 19) {
+          isLoaded();
+        }
+      };
+    });
+    mainItems.forEach(function(el) {
+      el[1].src = el[0];
+    });
+
+    weaponItems = [
+      [myMap.weapons[0], require("./img/weapon1.png"), new Image()],
+      [myMap.weapons[1], require("./img/weapon2.png"), new Image()],
+      [myMap.weapons[2], require("./img/weapon3.png"), new Image()],
+      [myMap.weapons[3], require("./img/weapon4.png"), new Image()],
+      [myMap.weapons[4], require("./img/weapon5.png"), new Image()]
+    ];
+    weaponItems.forEach(function(el) {
+      el[2].onload = () => {
+        loadedImagesCount++;
+        if (loadedImagesCount === 19) {
+          isLoaded();
+        }
+      };
+    });
+    weaponItems.forEach(function(el) {
+      el[2].src = el[1];
+    });
+
+    healthItems = [
+      [myMap.health[0], require("./img/health1.png"), new Image()],
+      [myMap.health[1], require("./img/health2.png"), new Image()],
+      [myMap.health[2], require("./img/health3.png"), new Image()],
+      [myMap.health[3], require("./img/health4.png"), new Image()],
+      [myMap.health[4], require("./img/health5.png"), new Image()]
+    ];
+    healthItems.forEach(function(el) {
+      el[2].onload = () => {
+        loadedImagesCount++;
+        if (loadedImagesCount === 19) {
+          isLoaded();
+        }
+      };
+    });
+    healthItems.forEach(function(el) {
+      el[2].src = el[1];
+    });
+
+    const imageEnemy = require("./img/main_enemy.png");
+    enemyItems = [
+      [myMap.enemies[0], imageEnemy, new Image(), new myPlayer.Enemy()],
+      [myMap.enemies[1], imageEnemy, new Image(), new myPlayer.Enemy()],
+      [myMap.enemies[2], imageEnemy, new Image(), new myPlayer.Enemy()],
+      [myMap.enemies[3], imageEnemy, new Image(), new myPlayer.Enemy()],
+      [myMap.enemies[4], imageEnemy, new Image(), new myPlayer.Enemy()]
+    ];
+    enemyItems.forEach(function(el) {
+      el[2].src = el[1];
+    });
+    enemyItems.forEach(function(el) {
+      el[2].onload = () => {
+        loadedImagesCount++;
+        if (loadedImagesCount === 19) {
+          isLoaded();
+        }
+      };
+    });
+
+    var isLoaded = () => {
+      this.setState({ imageLoaded: true }, function() {
+        this.drawMapBackground(15, 15);
         this.updateCanvas();
+      });
+    };
+  }
+  moveAllowed() {
+    document.addEventListener("keydown", this.test, false);
+  }
+  moveNotAllowed() {
+    document.removeEventListener("keydown", this.test);
+  }
+  test = e => {
+    // space and arrow keys
+    if ([32, 37, 38, 39, 40].indexOf(e.keyCode) > -1) {
+      e.preventDefault();
+      this.handleKeyPress();
     }
-    updateCanvas() {
-      const ctx = this.refs.canvasMap.getContext('2d');
+  };
 
-        var tilesize = 26
-        var imgP = new Image();
-        var imgF = new Image();
-        //var imgW = new Image();
+  updateCanvas() {
+    this.drawWindow();
+    this.moveAllowed();
+  }
+  drawWindow() {
+    var NUM_OF_TILES = this.state.windowSize * this.state.windowSize;
+    const ctx = this.refs.canvasWindowMap.getContext("2d");
 
-        imgP.onload = function () {
-          console.log("drawing a person")
-          ctx.drawImage(imgP,0,0);
-        }
-    /*    imgW.onload = function (x,y) {
-          console.log("drawing a person")
-          ctx.drawImage(imgW,x,y);
-        }*/
-        imgF.onload = function () {
-          console.log("drawing a person")
-          ctx.drawImage(imgF,26,0);
-        }
+    var xmin, xmax, ymin, ymax;
 
-      //  imgH.onload = load(imgH,130,100)
-      //  imgE.onload = load(imgE,160,100)
-
-      //  this.drawMap()
-      this.drawMap()
-      this.drawItems()
-
+    if (this.state.position[0] - 7 < 0) {
+      xmin = 0;
+      xmax = 14;
+    } else if (this.state.position[0] + 7 >= this.state.boardSizeX) {
+      xmin = this.state.boardSizeX - 15;
+      xmax = this.state.boardSizeX - 1;
+    } else {
+      xmin = this.state.position[0] - 7;
+      xmax = this.state.position[0] + 7;
     }
-    drawMap(){
-      var board, imageObj, tiles;
-      var NUM_OF_TILES = 60*40; // starting from ZERO
 
-      const ctx = this.refs.canvasMap.getContext('2d');
-      imageObj = new Image();
-      tiles = [];
-      board = myMap.mapArray;
-      console.log(board)
+    if (this.state.position[1] - 7 < 0) {
+      ymin = 0;
+      ymax = 14;
+    } else if (this.state.position[1] + 7 >= this.state.boardSizeY) {
+      ymin = this.state.boardSizeY - 15;
+      ymax = this.state.boardSizeY - 1;
+    } else {
+      ymin = this.state.position[1] - 7;
+      ymax = this.state.position[1] + 7;
+    }
+    this.drawMapBackground(this.state.windowSize, this.state.windowSize);
+    this.drawMap(this.state.windowSize, this.state.windowSize, xmin, ymin);
+    this.drawItems(this.state.windowSize, this.state.windowSize, xmin, ymin);
+    this.drawShadow(this.state.windowSize, this.state.windowSize, xmin, ymin);
+  }
+  drawMapBackground(xsize, ysize) {
+    const ctxb = this.refs.canvasWindowBackground.getContext("2d");
+    ctxb.width = xsize * 26;
+    ctxb.height = ysize * 26;
 
-      ctx.width = 60*26;
-      ctx.height = 40*26;
+    // Creating floor pattern
+    var pat = ctxb.createPattern(mainItems[1][1], "repeat");
+    ctxb.rect(0, 0, ctxb.width, ctxb.height);
+    ctxb.fillStyle = pat;
+    ctxb.fill();
+  }
+  drawMap(xsize, ysize, xstart, ystart) {
+    var board, imageObj, tiles;
 
-      var draw = function() {
-        var theX;
-        var theY;
-        // 3. DRAW MAP BY ROWS AND COLS
-        console.log(tiles)
-        for (var y = 0; y < myMap.mapArray.length; y++) {
-          for (var x = 0; x < myMap.mapArray[y].length; x++) {
-            theX = x * 26;
-            theY = y * 26;
-            //console.log(x,y)
-            //console.log(tiles[board[x][y]])
+    const ctx = this.refs.canvasWindowMap.getContext("2d");
+
+    tiles = [];
+    board = this.state.board;
+    //console.log(board);
+    var tilesize = 26;
+    ctx.width = xsize * 26;
+    ctx.height = ysize * 26;
+    ctx.clearRect(0, 0, xsize * tilesize, ysize * tilesize);
+    var draw = function() {
+      var theX;
+      var theY;
+      // 3. DRAW MAP BY ROWS AND COLS
+      // console.log(tiles);
+      for (var y = 0; y < ysize; y++) {
+        for (var x = 0; x < xsize; x++) {
+          theX = x * 26;
+          theY = y * 26;
+          //console.log(x,y)
+          //console.log(tiles[x][y]);
+          if (tiles[y][x] != undefined) {
             ctx.drawImage(tiles[y][x], theX, theY, 26, 26);
           }
         }
+      }
+    };
+    // 2. SET UP THE MAP TILES
+    var tilesIndY = 0;
+    //console.log("Board before drawing MAP: ", this.state.board);
+    var tiles = [];
+    for (var y = ystart; y < ystart + ysize; y++) {
+      tiles[tilesIndY] = [];
+      for (var x = xstart; x < xstart + xsize; x++) {
+        //console.log("x,y: ", x, y);
+        if (this.state.board[y][x] === 1) {
+          tiles[tilesIndY].push(mainItems[0][1]);
+        } else {
+          tiles[tilesIndY].push(undefined);
+        }
+      }
+      tilesIndY++;
     }
+    draw();
+  }
+  drawShadow(xsize, ysize, xstart, ystart) {
+    var tilesize = 26;
+    const ctx = this.refs.canvasWindowShadow.getContext("2d");
+    ctx.clearRect(0, 0, xsize * tilesize, ysize * tilesize);
 
-    var loadedImagesCount = 0;
+    for (var y = 0; y < ysize; y++) {
+      for (var x = 0; x < xsize; x++) {
+        if (this.state.boardShadow[y + ystart][x + xstart] === 2) {
+          ctx.fillStyle = "black";
+          ctx.fillRect(x * tilesize, y * tilesize, tilesize, tilesize);
+        } else if (this.state.boardShadow[y + ystart][x + xstart] === 1) {
+          ctx.fillStyle = "rgba(0,0,0,0.6)";
+          ctx.fillRect(x * tilesize, y * tilesize, tilesize, tilesize);
+        }
+      }
+    }
+  }
+  findItem = (x, y, array) => {
+    for (var i = 0; i < array.length; i++) {
+      //console.log("  Array item: ", array[i][0], " comparing with ", [x, y]);
+      if (array[i][0][0] === x && array[i][0][1] === y) {
+        //console.log("Found item in array", array, i, array[i]);
+        return i;
+      }
+    }
+    console.log("Item not found", x, y, array);
+  };
+  drawItems(xsize, ysize, xstart, ystart) {
+    var board, imageObj, items;
+    const ctx = this.refs.canvasWindowItems.getContext("2d");
+
+    items = [];
+
+    //console.log(board)
+    var tilesize = 26;
+    ctx.width = xsize * 26;
+    ctx.height = ysize * 26;
+
+    ctx.clearRect(0, 0, xsize * tilesize, ysize * tilesize);
+    var draw = function() {
+      var theX;
+      var theY;
+      // 3. DRAW MAP BY ROWS AND COLS
+      //console.log("Printing items array");
+      //console.log(items);
+      for (var y = 0; y < ysize; y++) {
+        for (var x = 0; x < xsize; x++) {
+          theX = x * 26;
+          theY = y * 26;
+          //console.log(x,y)
+          //console.log(tiles[board[x][y]])
+          ctx.drawImage(items[y][x], theX, theY, 26, 26);
+        }
+      }
+    };
 
     // 2. SET UP THE MAP TILES
-    for (var y = 0; y < myMap.mapArray.length; y++) {
-      tiles[y] = []
-      for (var x = 0; x < myMap.mapArray[y].length; x++) {
-        var imageObj = new Image(); // new instance for each image
-        if (myMap.mapArray[y][x] === 0) {
-          imageObj.src = imageFloor;
-        }
-        else {
-          imageObj.src = imageWall;
-        }
-        imageObj.onload = function() {
-          loadedImagesCount++;
-          //console.log("Loaded images: ", loadedImagesCount, " needing ", NUM_OF_TILES)
-          if (loadedImagesCount===NUM_OF_TILES) draw();
-        };
-        tiles[y].push(imageObj);
-        }
-      }
-    }
-    drawShadow(){
-    }
-    drawItems(){
-      var board, imageObj, items;
-      var NUM_OF_ITEMS = 16;
-      const ctx = this.refs.canvasItems.getContext('2d');
-      imageObj = new Image();
-      items = [];
-      board = myMap.itemsArray;
-      console.log(board)
-      ctx.width = 60*26;
-      ctx.height = 40*26;
-
-      var draw = function() {
-        var theX;
-        var theY;
-        // 3. DRAW MAP BY ROWS AND COLS
-        console.log("Printing items array")
-        console.log(items)
-        for (var y = 0; y < myMap.mapArray.length; y++) {
-          for (var x = 0; x < myMap.mapArray[y].length; x++) {
-            theX = x * 26;
-            theY = y * 26;
-            //console.log(x,y)
-            //console.log(tiles[board[x][y]])
-            ctx.drawImage(items[y][x], theX, theY, 26, 26);
-          }
+    var p;
+    var tilesIndY = 0;
+    var items = [];
+    var noImage = new Image();
+    for (var y = ystart; y < ystart + ysize; y++) {
+      items[tilesIndY] = [];
+      for (var x = xstart; x < xstart + xsize; x++) {
+        if (this.state.boardItems[y][x] === 5) {
+          items[tilesIndY].push(mainItems[2][1]);
+        } else if (this.state.boardItems[y][x] === 4) {
+          items[tilesIndY].push(mainItems[3][1]);
+        } else if (this.state.boardItems[y][x] === 1) {
+          // health item
+          p = this.findItem(x, y, healthItems);
+          items[tilesIndY].push(healthItems[p][2]);
+        } else if (this.state.boardItems[y][x] === 2) {
+          // weapon item
+          p = this.findItem(x, y, weaponItems);
+          items[tilesIndY].push(weaponItems[p][2]);
+        } else if (this.state.boardItems[y][x] === 3) {
+          // enemy item
+          p = this.findItem(x, y, enemyItems);
+          items[tilesIndY].push(enemyItems[p][2]);
+        } else {
+          items[tilesIndY].push(noImage);
         }
       }
-      var loadedImagesCount = 0;
+      tilesIndY++;
+    }
+    draw();
+  }
 
-      // 2. SET UP THE MAP TILES
-      for (var y = 0; y < myMap.mapArray.length; y++) {
-        items[y] = []
-        for (var x = 0; x < myMap.mapArray[y].length; x++) {
-          var imageObj = new Image(); // new instance for each image
-          if (myMap.itemsArray[y][x] === 4) {
-            imageObj.src = imagePerson;
-          }
-          else if (myMap.itemsArray[y][x] === 1) { // health item
-            imageObj.src = imageEnemy;
-          }
-          else if (myMap.itemsArray[y][x] === 2) { // weapon item
-            imageObj.src = imageWeapon;
-          }
-          else if (myMap.itemsArray[y][x] === 3) { // enemy item
-            imageObj.src = imageEnemy;
-          }
-          else // enemy
-          {
-            //imageObj.src = undefined;
-          }
-          imageObj.onload = function() {
-            loadedImagesCount++;
-            //console.log("Loaded images: ", loadedImagesCount, " needing ", NUM_OF_TILES)
-            if (loadedImagesCount===NUM_OF_ITEMS) draw();
-          };
-          items[y].push(imageObj);
+  handleKeyPress(e) {
+    var dir = "";
+    e = e || window.event;
+
+    if (e.keyCode == "38") {
+      // up arrow
+      console.log("up pressed");
+      dir = "up";
+    } else if (e.keyCode == "40") {
+      // down arrow
+      console.log("down pressed");
+      dir = "down";
+    } else if (e.keyCode == "37") {
+      // left arrow
+      console.log("left pressed");
+      dir = "left";
+    } else if (e.keyCode == "39") {
+      // right arrow
+      console.log("right pressed");
+      dir = "right";
+    } else {
+      return null;
+    }
+    this.moveNotAllowed();
+    this.playerMove(dir);
+  }
+  gameOver() {
+    console.log("Game over");
+    this.notifyPlayer("Game over. You lost", 2000);
+  }
+  playerMove(move) {
+    var ox = this.state.position[0];
+    var oy = this.state.position[1];
+    var nx = ox;
+    var ny = oy;
+    switch (move) {
+      case "up":
+        if (oy - 1 >= 0 && this.state.board[oy - 1][ox] === 0) {
+          ny = oy - 1;
         }
+        break;
+      case "down":
+        if (
+          oy + 1 <= this.state.boardSizeY &&
+          this.state.board[oy + 1][ox] === 0
+        ) {
+          ny = oy + 1;
+        }
+        break;
+      case "left":
+        if (ox - 1 >= 0 && this.state.board[oy][ox - 1] === 0) {
+          nx = ox - 1;
+        }
+        break;
+      case "right":
+        if (
+          ox + 1 <= this.state.boardSizeX &&
+          this.state.board[oy][ox + 1] === 0
+        ) {
+          nx = ox + 1;
+        }
+        break;
+    }
+    if (ox !== nx || oy !== ny) {
+      //health Item
+      if (this.state.boardItems[ny][nx] === 1) {
+        this.state.player.increaseHealth();
+        this.updatePlayerPosition(ox, oy, nx, ny);
+      } else if (this.state.boardItems[ny][nx] === 2) {
+        //weapon Item
+        this.state.player.collectWeapon();
+        this.updatePlayerPosition(ox, oy, nx, ny);
+      } else if (
+        this.state.boardItems[ny][nx] === 3 ||
+        this.state.boardItems[ny][nx] === 4
+      ) {
+        //enemy
+        var p = this.findItem(nx, ny, enemyItems);
+        var result =
+          this.state.boardItems[ny][nx] === 3
+            ? this.state.player.fightRound(enemyItems[p][3])
+            : this.state.player.fightRound(mainItems[3][2]);
+        if (result) {
+          this.updatePlayerPosition(ox, oy, nx, ny);
+          this.checkIfBossAppear();
+          console.log(this.state.boardItems);
+        } else {
+          this.moveAllowed();
+        }
+        if (this.state.player.health <= 0) {
+          this.gameOver();
+        }
+      } else {
+        //nothing
+        this.updatePlayerPosition(ox, oy, nx, ny);
+      }
+    } else {
+      this.moveAllowed();
+    }
+  }
+
+  checkIfBossAppear() {
+    var empty = true;
+    for (var i = 0; i < enemyItems.length; i++) {
+      if (enemyItems[i][3].health >= 0) {
+        empty = false;
       }
     }
+    if (empty) {
+      var oldA = this.state.boardItems;
+      console.log(oldA);
+      var co = myMap.choosePlace(oldA);
+      oldA[co[1]][co[0]] = 4;
+      console.log("Boss will be created");
 
-    render() {
-
-        return (
-          <div>
-            <canvas id="canvasMap" ref="canvasMap" width={1560} height={1040}/>
-            <canvas id="canvasItems" ref="canvasItems" width={1560} height={1040}/>
-</div>
-        );
+      mainItems[3][2] = new myPlayer.Enemy(
+        this.state.game.currentLevel + 1,
+        0,
+        (this.state.game.currentLevel + 1) * 100
+      );
+      this.setState(
+        {
+          boardItems: oldA
+        },
+        () => {
+          this.updateCanvas();
+          this.notifyPlayer("The boss appeared", 6000);
+        }
+      );
     }
+  }
+
+  updatePlayerPosition = (ox, oy, nx, ny) => {
+    // move the guy
+    var items = this.state.boardItems;
+    items[oy][ox] = 0;
+    items[ny][nx] = 5;
+    // move the shadow
+    var newShadows = myMap.shineLight(this.state.boardShadow, nx, ny);
+    // move also a viewpoint
+    this.setState(
+      {
+        position: [nx, ny],
+        boardItems: items,
+        boardShadow: newShadows
+      },
+      function() {
+        this.updateCanvas();
+      }
+    );
+  };
+
+  render() {
+    console.log(myPlayer.experienceForLevel);
+    return (
+      <div>
+        <div>
+          Level: {this.state.player.level} Experience:{" "}
+          {this.state.player.experience} Needed for the next level:{" "}
+          {myPlayer.experienceForLevel - this.state.player.experience} Health:{" "}
+          {this.state.player.health} Weapon: {this.state.player.weapon}{" "}
+        </div>
+        <canvas
+          id="canvasWindowBackground"
+          ref="canvasWindowBackground"
+          width={390}
+          height={390}
+        />
+        <canvas
+          id="canvasWindowMap"
+          ref="canvasWindowMap"
+          width={390}
+          height={390}
+        />
+        <canvas
+          id="canvasWindowItems"
+          ref="canvasWindowItems"
+          width={390}
+          height={390}
+        />
+        <canvas
+          id="canvasWindowShadow"
+          ref="canvasWindowShadow"
+          width={390}
+          height={390}
+        />
+        {this.state.game.notificationOn && (
+          <Notification text={this.state.game.notificationText} />
+        )}
+      </div>
+    );
+  }
 }
+
+class Notification extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = {
+      text: this.props.text
+    };
+  }
+  componentDidMount() {
+    console.log("Canvas text: ", this.state.text);
+    const ctx = this.refs.canvasWindowNotif.getContext("2d");
+    ctx.fillStyle = "rgba(0,0,0,0.7)";
+    ctx.fillRect(0, 0, 390, 390);
+    ctx.font = "40px Frijole";
+    //ctx.font = "40px Archivo Black";
+    //ctx.font = "60px Amatic SC";
+
+    ctx.fillStyle = "white";
+    ctx.textAlign = "center";
+    ctx.fillText(this.state.text, 195, 195);
+  }
+  render() {
+    return (
+      <canvas
+        id="canvasWindowNotif"
+        ref="canvasWindowNotif"
+        width={390}
+        height={390}
+      />
+    );
+  }
+}
+
 export default App;

@@ -1,18 +1,37 @@
-#canvasShadow {
-  position: absolute;
-  left: 0;
-  top: 0;
-  z-index: 2;
-  opacity: 1; }
+body {
+  font-family: "Frijole", cursive; }
 
-#canvasMap {
-  position: absolute;
-  left: 0;
-  top: 0;
+#canvasWindowBackground {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
   z-index: 0; }
 
-#canvasItems {
-  position: absolute;
-  left: 0;
-  top: 0;
+#canvasWindowShadow {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 3; }
+
+#canvasWindowMap {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
   z-index: 1; }
+
+#canvasWindowItems {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 2; }
+
+#canvasWindowNotif {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 4; }
