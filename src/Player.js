@@ -22,6 +22,9 @@ class Enemy {
   causeDamage() {
     return getRandomInt(this.level * 40 * 0.7, this.level * 50 * 1.3);
   }
+  damageRange() {
+    return [this.level * 40 * 0.7, this.level * 50 * 1.3];
+  }
 }
 
 function getRandomInt(min, max) {
@@ -52,6 +55,12 @@ class Player extends Enemy {
       this.weapon * this.level
     );
   }
+  damageRange() {
+    return [
+      this.level * 40 * 0.7 + this.weapon * this.level,
+      this.level * 50 * 1.3 + this.weapon * this.level
+    ];
+  }
   collectWeapon() {
     this.weapon += weaponStrength;
   }
@@ -66,10 +75,10 @@ class Player extends Enemy {
       var damage = enemy.causeDamage();
       console.log("Enemy caused damage: ", damage);
       this.decreaseHealth(damage);
-      return false;
+      return [mydamage, damage, false];
     } else {
       this.increaseExperience();
-      return true;
+      return [mydamage, 0, true];
     }
   }
 

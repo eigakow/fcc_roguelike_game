@@ -23,11 +23,64 @@ class App extends Component {
 class Board extends Component {
   constructor(props) {
     super(props);
+    this.state = {
+      player: new myPlayer.Player(),
+      dungeonLevel: 1,
+      enemy: undefined,
+      lastBattle: undefined
+    };
   }
+  updatePlayer = action => {
+    switch (action) {
+      case "increaseHealth":
+        this.state.player.increaseHealth();
+        break;
+      case "collectWeapon":
+        this.state.player.collectWeapon();
+        break;
+      case "afterFight":
+        break;
+    }
+    this.setState({ player: this.state.player });
+  };
+  updateEnemy = enemy => {
+    this.setState(
+      { enemy: enemy }
+      //console.log("Updating enemy: ", this.state.enemy)
+    );
+  };
+  updateBattle = battle => {
+    console.log("Updating battle: ", battle);
+    this.setState(
+      { lastBattle: battle },
+      console.log("Battle updated: ", battle)
+    );
+  };
   render() {
     return (
       <div>
-        <CanvasComponent />
+        <div className="title">
+          <h1>Roguelike Game</h1>
+          <h2>Kill the boss in dungeon 3</h2>
+        </div>
+        <div className="mainPanel">
+          <GameStats
+            player={this.state.player}
+            dungeonLevel={this.state.dungeonLevel}
+          />
+          <EnemyStats
+            player={this.state.player}
+            enemy={this.state.enemy}
+            lastBattle={this.state.lastBattle}
+          />
+          <CanvasComponent
+            player={this.state.player}
+            updatePlayer={this.updatePlayer}
+            updateEnemy={this.updateEnemy}
+            updateBattle={this.updateBattle}
+            dungeonLevel={this.state.dungeonLevel}
+          />
+        </div>
       </div>
     );
   }
@@ -45,7 +98,6 @@ class CanvasComponent extends React.Component {
       boardItems: myMap.itemsArray,
       boardShadow: myMap.shadowArray,
       position: myMap.initialCo,
-      player: new myPlayer.Player(),
       enemy: enemyItems,
       imageLoaded: false,
       game: {
@@ -83,7 +135,7 @@ class CanvasComponent extends React.Component {
       [require("./img/wall.png"), new Image()],
       [require("./img/floor.png"), new Image()],
       [require("./img/main_guy.png"), new Image()],
-      [require("./img/boss.png"), new Image(), new myPlayer.Enemy()]
+      [require("./img/boss.png"), new Image(), new myPlayer.Enemy(), []]
     ];
     mainItems.forEach(function(el) {
       el[1].onload = () => {
@@ -425,11 +477,11 @@ class CanvasComponent extends React.Component {
     if (ox !== nx || oy !== ny) {
       //health Item
       if (this.state.boardItems[ny][nx] === 1) {
-        this.state.player.increaseHealth();
+        this.props.updatePlayer("increaseHealth");
         this.updatePlayerPosition(ox, oy, nx, ny);
       } else if (this.state.boardItems[ny][nx] === 2) {
         //weapon Item
-        this.state.player.collectWeapon();
+        this.props.updatePlayer("collectWeapon");
         this.updatePlayerPosition(ox, oy, nx, ny);
       } else if (
         this.state.boardItems[ny][nx] === 3 ||
@@ -439,18 +491,20 @@ class CanvasComponent extends React.Component {
         var p = this.findItem(nx, ny, enemyItems);
         var result =
           this.state.boardItems[ny][nx] === 3
-            ? this.state.player.fightRound(enemyItems[p][3])
-            : this.state.player.fightRound(mainItems[3][2]);
-        if (result) {
+            ? this.props.player.fightRound(enemyItems[p][3])
+            : this.props.player.fightRound(mainItems[3][2]);
+        this.props.updateBattle(result);
+        if (result[2]) {
           this.updatePlayerPosition(ox, oy, nx, ny);
           this.checkIfBossAppear();
           console.log(this.state.boardItems);
         } else {
           this.moveAllowed();
         }
-        if (this.state.player.health <= 0) {
+        if (this.props.player.health <= 0) {
           this.gameOver();
         }
+        this.props.updatePlayer("afterFight");
       } else {
         //nothing
         this.updatePlayerPosition(ox, oy, nx, ny);
@@ -458,8 +512,47 @@ class CanvasComponent extends React.Component {
     } else {
       this.moveAllowed();
     }
+    //printing closest enemy stats
+    var adjacentEnemy = this.findAdjacentEnemy();
+    if (adjacentEnemy) {
+      this.props.updateEnemy(adjacentEnemy);
+    } else {
+      this.props.updateEnemy(undefined);
+    }
   }
-
+  findAdjacentEnemy() {
+    var x = this.state.position[0];
+    var y = this.state.position[1];
+    //console.log("Finding adjacent enemy: ",this.state.position,this.state.enemy);
+    for (var i = 0; i < this.state.enemy.length; i++) {
+      if (
+        (this.state.enemy[i][0][0] === x + 1 ||
+          this.state.enemy[i][0][0] === x ||
+          this.state.enemy[i][0][0] === x - 1) &&
+        (this.state.enemy[i][0][1] === y + 1 ||
+          this.state.enemy[i][0][1] === y ||
+          this.state.enemy[i][0][1] === y - 1) &&
+        this.state.enemy[i][3].alive
+      ) {
+        //console.log("Found adj enemy at ", this.state.enemy[i][0]);
+        return this.state.enemy[i][3];
+      }
+    }
+    // Looking for boss
+    if (
+      (mainItems[3][3][0] === x + 1 ||
+        mainItems[3][3][0] === x ||
+        mainItems[3][3][0] === x - 1) &&
+      (mainItems[3][3][1] === y + 1 ||
+        mainItems[3][3][1] === y ||
+        mainItems[3][3][1] === y - 1) &&
+      mainItems[3][2].alive
+    ) {
+      //console.log("Found adj enemy at ", this.state.enemy[i][0]);
+      return mainItems[3][2];
+    }
+    return false;
+  }
   checkIfBossAppear() {
     var empty = true;
     for (var i = 0; i < enemyItems.length; i++) {
@@ -479,6 +572,8 @@ class CanvasComponent extends React.Component {
         0,
         (this.state.game.currentLevel + 1) * 100
       );
+      //Adding position to boss item
+      mainItems[3][3] = [co[0], co[1]];
       this.setState(
         {
           boardItems: oldA
@@ -512,34 +607,32 @@ class CanvasComponent extends React.Component {
   };
 
   render() {
-    console.log(myPlayer.experienceForLevel);
+    //console.log(myPlayer.experienceForLevel);
     return (
-      <div>
-        <div>
-          Level: {this.state.player.level} Experience:{" "}
-          {this.state.player.experience} Needed for the next level:{" "}
-          {myPlayer.experienceForLevel - this.state.player.experience} Health:{" "}
-          {this.state.player.health} Weapon: {this.state.player.weapon}{" "}
-        </div>
+      <div className="CanvasComponent">
         <canvas
+          className="canvasWindow"
           id="canvasWindowBackground"
           ref="canvasWindowBackground"
           width={390}
           height={390}
         />
         <canvas
+          className="canvasWindow"
           id="canvasWindowMap"
           ref="canvasWindowMap"
           width={390}
           height={390}
         />
         <canvas
+          className="canvasWindow"
           id="canvasWindowItems"
           ref="canvasWindowItems"
           width={390}
           height={390}
         />
         <canvas
+          className="canvasWindow"
           id="canvasWindowShadow"
           ref="canvasWindowShadow"
           width={390}
@@ -548,6 +641,84 @@ class CanvasComponent extends React.Component {
         {this.state.game.notificationOn && (
           <Notification text={this.state.game.notificationText} />
         )}
+      </div>
+    );
+  }
+}
+
+class GameStats extends React.Component {
+  constructor(props) {
+    super(props);
+  }
+  render() {
+    return (
+      <div className="GameStats">
+        <h3>Game Stats</h3>
+        <div className="statsItem">
+          Health: <b>{this.props.player.health}</b>
+        </div>
+        <div className="statsItem">
+          Experience: <b>{this.props.player.experience}</b>
+          <br />
+          Level: <b>{this.props.player.level}</b>
+          <br />
+          XP needed for the next level:
+          <b>{myPlayer.experienceForLevel - this.props.player.experience}</b>
+        </div>
+        <div className="statsItem">
+          Weapon Strength: <b>{this.props.player.weapon}</b>
+          <br />
+          Attack Range:{" "}
+          <b>
+            {this.props.player.damageRange()[0]} -
+            {this.props.player.damageRange()[1]}
+          </b>
+        </div>
+        <div className="statsItem">
+          Dungeon level: <b>{this.props.dungeonLevel}</b>
+        </div>
+      </div>
+    );
+  }
+}
+
+class EnemyStats extends React.Component {
+  constructor(props) {
+    super(props);
+  }
+  render() {
+    if (this.props.lastBattle) {
+      var battleWon =
+        this.props.lastBattle[0] - this.props.lastBattle[1] > 0 ? true : false;
+    }
+    return (
+      <div className="EnemyStats">
+        <div>
+          <h3>Last Battle</h3>
+          <div className="statsItem">
+            Inflicted damage:
+            <br />
+            You: {this.props.lastBattle && this.props.lastBattle[0]}
+            <br />
+            Opponent: {this.props.lastBattle && this.props.lastBattle[1]}
+            <br />
+            {battleWon && "You WON the last battle!"}
+            {!battleWon &&
+              this.props.lastBattle &&
+              "You lost the last battle..."}
+          </div>
+        </div>
+        <div>
+          <h3>Enemy</h3>
+          <div className="statsItem">
+            Health:
+            {this.props.enemy && this.props.enemy.health}
+            <br />
+            Attack Range:
+            {this.props.enemy && this.props.enemy.damageRange()[0]} -
+            {this.props.enemy && this.props.enemy.damageRange()[1]}
+          </div>
+        </div>
       </div>
     );
   }
@@ -576,6 +747,7 @@ class Notification extends React.Component {
   render() {
     return (
       <canvas
+        className="canvasWindow"
         id="canvasWindowNotif"
         ref="canvasWindowNotif"
         width={390}
